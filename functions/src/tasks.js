@@ -1,10 +1,14 @@
+import jwt from "jsonwebtoken";
 import dbConnect from "./dbConnect.js";
+import { secrectKey } from "../credentials.js";
 
 export async function getTasks(req, res) {
-  //add by user id to this
+  const token = req.headers.authorization;
+  const user = jwt.verify(token, secrectKey);
   const db = dbConnect();
   const collection = await db
     .collection("task")
+    .where("userId", "==", user.id)
     .get()
     .catch((err) => res.status(500).send(err));
   const tasks = collection.docs.map((doc) => {
@@ -17,13 +21,14 @@ export async function getTasks(req, res) {
 }
 
 export async function createTask(req, res) {
-  // It will add a user id
-  const newTask = req.body;
-  if (!newTask || !newTask.task) {
-    res.status(400)
-    .send({ success: false, message: "invalid request" });
+  const token = req.headers.authorization;
+  let newTask = req.body;
+  const user = jwt.verify(token, secrectKey);
+  if (!newTask || !newTask.task || !user) {
+    res.status(400).send({ success: false, message: "invalid request" });
     return;
   }
+  newTask.userId = user.id;
   const db = dbConnect();
   await db
     .collection("task")
@@ -37,12 +42,14 @@ export async function createTask(req, res) {
 export async function updateTask(req, res) {
   const taskUpdate = req.body;
   const { taskId } = req.params;
-  const db = dbConnect()
-  await db.collection('task').doc(taskID).update(taskUpdate)
-  .catch((err) => res.status(500).send(err));
-
-  res.status(202)
-  getTasks(req, res)
+  const db = dbConnect();
+  await db
+    .collection("task")
+    .doc(taskId)
+    .update(taskUpdate)
+    .catch((err) => res.status(500).send(err));
+  res.status(202);
+  getTasks(req, res);
 }
 
 export function deleteTask(req, res) {
